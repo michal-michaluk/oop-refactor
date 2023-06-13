@@ -8,6 +8,8 @@ import external.CurrentStock;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
+import shortages.DemandsRepository;
+import shortages.ProductionOutputsRepository;
 
 import java.time.Duration;
 import java.time.LocalDate;

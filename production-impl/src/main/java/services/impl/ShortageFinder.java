@@ -4,7 +4,9 @@ import entities.ShortageEntity;
 import enums.DeliverySchema;
 import external.CurrentStock;
 import shortages.Demands;
+import shortages.DemandsRepository;
 import shortages.ProductionOutputs;
+import shortages.ProductionOutputsRepository;
 
 import java.time.LocalDate;
 import java.util.LinkedList;

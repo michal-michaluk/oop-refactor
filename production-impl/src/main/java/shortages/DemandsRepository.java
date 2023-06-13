@@ -1,7 +1,6 @@
-package services.impl;
+package shortages;
 
 import dao.DemandDao;
-import shortages.Demands;
 
 import java.time.LocalDate;
 

@@ -1,50 +1,40 @@
 package shortages;
 
-import entities.DemandEntity;
 import enums.DeliverySchema;
-import tools.Util;
 
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class Demands {
 
-    private final Map<LocalDate, DemandEntity> demandsPerDay;
+    private final Map<LocalDate, DailyDemand> demands;
 
-    public Demands(List<DemandEntity> demands) {
-        demandsPerDay = new HashMap<>();
-        for (DemandEntity demand : demands) {
-            demandsPerDay.put(demand.getDay(), demand);
-        }
+    public Demands(Map<LocalDate, DailyDemand> demands) {
+        this.demands = demands;
     }
 
     public boolean hasNoDemand(LocalDate day) {
-        return !demandsPerDay.containsKey(day);
+        return !demands.containsKey(day);
     }
 
     public DailyDemand get(LocalDate day) {
-        if (demandsPerDay.containsKey(day)) {
-            return new DailyDemand(demandsPerDay.get(day));
-        } else {
-            return null;
-        }
+        return demands.getOrDefault(day, null);
     }
 
-    public static class DailyDemand {
-        private final DemandEntity demand;
+    public record DailyDemand(long level, DeliverySchema schema) {
 
-        public DailyDemand(DemandEntity demand) {
-            this.demand = demand;
-        }
-
-        public DeliverySchema getDeliverySchema() {
-            return Util.getDeliverySchema(demand);
-        }
-
-        public long getLevel() {
-            return Util.getLevel(demand);
+        public long levelOnDelivery(long produced, long level) {
+            if (schema() == DeliverySchema.atDayStart) {
+                return level - this.level();
+            } else if (schema() == DeliverySchema.tillEndOfDay) {
+                return level - this.level() + produced;
+            } else if (schema() == DeliverySchema.every3hours) {
+                // TODO WTF ?? we need to rewrite that app :/
+                throw new UnsupportedOperationException();
+            } else {
+                // TODO implement other variants
+                throw new UnsupportedOperationException();
+            }
         }
     }
 }

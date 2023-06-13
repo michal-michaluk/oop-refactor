@@ -2,15 +2,11 @@ package services.impl;
 
 import entities.ShortageEntity;
 import external.CurrentStock;
-import shortages.Demands;
-import shortages.DemandsRepository;
-import shortages.ProductionOutputs;
-import shortages.ProductionOutputsRepository;
+import shortages.*;
 
 import java.time.LocalDate;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.stream.Stream;
 
 public class ShortageFinder {
 
@@ -41,11 +37,7 @@ public class ShortageFinder {
      * (increase amount in scheduled transport or organize extra transport at given time)
      */
     public List<ShortageEntity> findShortages(String productRefNo, LocalDate today, int daysAhead, CurrentStock stock) {
-
-        List<LocalDate> dates = Stream.iterate(today, date -> date.plusDays(1))
-                .limit(daysAhead)
-                .toList();
-
+        DateRange dates = DateRange.of(today, daysAhead);
         ProductionOutputs outputs = productionDao.findFromTime(productRefNo, today);
         Demands demandsPerDay = demandDao.findFrom(today, productRefNo);
 

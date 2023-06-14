@@ -1,21 +1,26 @@
 package services.impl;
 
+import dao.DemandDao;
+import dao.ProductionDao;
+import entities.DemandEntity;
+import entities.ProductionEntity;
 import entities.ShortageEntity;
+import enums.DeliverySchema;
 import external.CurrentStock;
-import shortages.*;
+import tools.Util;
 
 import java.time.LocalDate;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Stream;
 
 public class ShortageFinder {
 
-    private final DemandsRepository demandDao;
-    private final ProductionOutputsRepository productionDao;
+    private final DemandDao demandDao;
+    private final ProductionDao productionDao;
 
-    public ShortageFinder(DemandsRepository demand, ProductionOutputsRepository production) {
-        this.demandDao = demand;
-        this.productionDao = production;
+    public ShortageFinder(DemandDao demandDao, ProductionDao productionDao) {
+        this.demandDao = demandDao;
+        this.productionDao = productionDao;
     }
 
     /**
@@ -37,22 +42,53 @@ public class ShortageFinder {
      * (increase amount in scheduled transport or organize extra transport at given time)
      */
     public List<ShortageEntity> findShortages(String productRefNo, LocalDate today, int daysAhead, CurrentStock stock) {
-        DateRange dates = DateRange.of(today, daysAhead);
-        ProductionOutputs outputs = productionDao.findFromTime(productRefNo, today);
-        Demands demandsPerDay = demandDao.findFrom(today, productRefNo);
+        List<ProductionEntity> productions = productionDao.findFromTime(productRefNo, today.atStartOfDay());
+        List<DemandEntity> demands = demandDao.findFrom(today.atStartOfDay(), productRefNo);
+
+        List<LocalDate> dates = Stream.iterate(today, date -> date.plusDays(1))
+                .limit(daysAhead)
+                .toList();
+
+        Map<LocalDate, List<ProductionEntity>> outputs = new HashMap<>();
+        for (ProductionEntity production : productions) {
+            if (!outputs.containsKey(production.getStart().toLocalDate())) {
+                outputs.put(production.getStart().toLocalDate(), new ArrayList<>());
+            }
+            outputs.get(production.getStart().toLocalDate()).add(production);
+        }
+        Map<LocalDate, DemandEntity> demandsPerDay = new HashMap<>();
+        for (DemandEntity demand : demands) {
+            demandsPerDay.put(demand.getDay(), demand);
+        }
 
         long level = stock.getLevel();
 
         List<ShortageEntity> gap = new LinkedList<>();
         for (LocalDate day : dates) {
-            long produced = outputs.getLevel(day);
-            if (demandsPerDay.hasNoDemand(day)) {
-                level += produced;
+            DemandEntity demand = demandsPerDay.get(day);
+            if (demand == null) {
+                for (ProductionEntity production : outputs.get(day)) {
+                    level += production.getOutput();
+                }
                 continue;
             }
+            long produced = 0;
+            for (ProductionEntity production : outputs.get(day)) {
+                produced += production.getOutput();
+            }
 
-            Demands.DailyDemand demand = demandsPerDay.get(day);
-            long levelOnDelivery = demand.levelOnDelivery(produced, level);
+            long levelOnDelivery;
+            if (Util.getDeliverySchema(demand) == DeliverySchema.atDayStart) {
+                levelOnDelivery = level - Util.getLevel(demand);
+            } else if (Util.getDeliverySchema(demand) == DeliverySchema.tillEndOfDay) {
+                levelOnDelivery = level - Util.getLevel(demand) + produced;
+            } else if (Util.getDeliverySchema(demand) == DeliverySchema.every3hours) {
+                // TODO WTF ?? we need to rewrite that app :/
+                throw new UnsupportedOperationException();
+            } else {
+                // TODO implement other variants
+                throw new UnsupportedOperationException();
+            }
 
             if (levelOnDelivery < 0) {
                 ShortageEntity entity = new ShortageEntity();
@@ -62,7 +98,7 @@ public class ShortageFinder {
                 entity.setMissing(-levelOnDelivery);
                 gap.add(entity);
             }
-            long endOfDayLevel = level + produced - demand.level();
+            long endOfDayLevel = level + produced - Util.getLevel(demand);
             level = endOfDayLevel >= 0 ? endOfDayLevel : 0;
         }
         return gap;
